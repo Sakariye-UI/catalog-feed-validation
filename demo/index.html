@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalog Feed Validation Demo</title>
+<link rel="stylesheet" href="../src/panel.css">
+<style>
+  /* Demo page only: a stand-in for the Edit Catalog Source page. */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #F3F6F7;
+    color: #1D1E20;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+  }
+  .demo-bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+    padding: 12px 16px; background: #1D1E20; color: #fff;
+  }
+  .demo-bar strong { margin-right: 8px; }
+  .demo-bar select, .demo-bar input { font: inherit; }
+  .demo-bar select { height: 32px; border-radius: 8px; border: 0; padding: 0 8px; }
+  .demo-bar label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .site-main {
+    margin: 8px;
+    background: #fff;
+    border: 1.33px solid #EAEDEF;
+    border-radius: 16px;
+    min-height: calc(100vh - 64px);
+    transition: margin-right .2s ease;
+  }
+  .site-main.with-panel { margin-right: 504px; }
+  .page-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 24px; border-bottom: 1.33px solid #EAEDEF;
+  }
+  .crumbs { font-weight: 600; }
+  .crumbs span { color: #747576; font-weight: 400; }
+  .actions { display: flex; gap: 8px; }
+  .actions .cfv-button { height: 32px; padding: 4px 8px; font-size: 14px; font-weight: 600; }
+  .page-body { max-width: 720px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+  .page-card { border: 1.33px solid #C4C9CF; border-radius: 16px; padding: 24px; }
+  .page-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .page-card h3 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+  .page-card p { margin: 4px 0 0; font-size: 16px; line-height: 24px; color: #4B4D4E; }
+  .page-card__buttons { display: flex; gap: 8px; flex: 0 0 auto; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  .fields label { display: block; margin-bottom: 4px; }
+  .fields input { width: 100%; height: 40px; border: 1.33px solid #C4C9CF; border-radius: 8px; padding: 0 12px; font: inherit; background: #fff; color: #1D1E20; }
+  .cfv-button[disabled] { background: #F3F6F7; border-color: #F3F6F7; color: #ACB0B4; cursor: default; }
+  @media (max-width: 720px) {
+    .fields { grid-template-columns: 1fr; }
+    .page-card__head { flex-direction: column; }
+    .site-main.with-panel { margin-right: 8px; }
+  }
+</style>
+</head>
+<body>
+  <div class="demo-bar">
+    <strong>Demo</strong>
+    <select id="sample" aria-label="Example feed"></select>
+    <label>or check a file <input type="file" id="file" accept=".xml,.json,.rss,.txt,application/json,application/xml,text/xml"></label>
+  </div>
+
+  <div class="site-main" id="site-main">
+    <div class="page-head">
+      <div class="crumbs"><span>Custom sources /</span> Example source</div>
+      <div class="actions">
+        <button type="button" class="cfv-button" id="validate-sync">Validate sync</button>
+        <button type="button" class="cfv-button" disabled>Refresh sync</button>
+      </div>
+    </div>
+
+    <div class="page-body" id="page-body">
+      <section class="page-card" id="define-card">
+        <div class="page-card__head">
+          <div>
+            <h3>Define feed source</h3>
+            <p>Name your feed and specify a URL to fetch items from. Your feed source must be an XML or JSON feed.</p>
+          </div>
+          <div class="page-card__buttons">
+            <button type="button" class="cfv-button" id="validate-source">Validate source</button>
+            <button type="button" class="cfv-button" disabled>Update source</button>
+          </div>
+        </div>
+        <div class="fields">
+          <div><label for="src-name">Source name</label><input id="src-name" value="Example source" readonly></div>
+          <div><label for="src-url">Source URL</label><input id="src-url" readonly></div>
+        </div>
+      </section>
+
+      <section class="page-card" id="mapping-card">
+        <div class="page-card__head">
+          <div>
+            <h3>Configure field mapping</h3>
+            <p>All item fields in your feed must be mapped to Klaviyo fields.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="../src/checks.js"></script>
+  <script src="../src/panel.js"></script>
+  <script src="samples.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const Checks = window.CatalogFeedChecks;
+    const UI = window.CatalogFeedValidationUI;
+    const samples = window.CatalogFeedSamples;
+
+    const select = document.getElementById('sample');
+    const fileInput = document.getElementById('file');
+    const urlField = document.getElementById('src-url');
+    const siteMain = document.getElementById('site-main');
+
+    samples.forEach(function (s) {
+      const opt = document.createElement('option');
+      opt.value = s.key;
+      opt.textContent = s.label;
+      select.appendChild(opt);
+    });
+
+    let current = samples[0];
+    function setCurrent(source) {
+      current = source;
+      urlField.value = source.response.feedUrl || source.label;
+    }
+    setCurrent(current);
+
+    select.addEventListener('change', function () {
+      setCurrent(samples.find(function (s) { return s.key === select.value; }));
+      fileInput.value = '';
+    });
+
+    fileInput.addEventListener('change', function () {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      file.text().then(function (text) {
+        setCurrent({
+          label: file.name,
+          response: { body: text, httpStatus: 200, byteSize: file.size, formatHint: /\.json$/i.test(file.name) ? 'json' : undefined },
+          context: {},
+        });
+      });
+    });
+
+    // In the app this is the server-side check; here the samples are already in memory, so a
+    // short delay stands in for the fetch.
+    function runCheck() {
+      return new Promise(function (resolve) {
+        setTimeout(function () { resolve(Checks.validateCatalogFeed(current.response, current.context)); }, 700);
+      });
+    }
+    function checkedAt() {
+      return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+
+    // Validate source: the inline card goes straight after "Define feed source".
+    const card = UI.createSourceCard({
+      onClose: function () { card.element.remove(); },
+      onRevalidate: function () { validateSource(); },
+    });
+    function validateSource() {
+      const defineCard = document.getElementById('define-card');
+      if (!card.element.isConnected) defineCard.after(card.element);
+      card.showLoading();
+      runCheck().then(function (result) { card.showResult(result, { checkedAt: checkedAt() }); });
+    }
+    document.getElementById('validate-source').addEventListener('click', validateSource);
+
+    // Validate sync: the docked panel, with the page narrowed beside it.
+    let lastResult = null;
+    const panel = UI.createSyncPanel({
+      onClose: closePanel,
+      onRefreshSync: function () { closePanel(); },
+      onCopyReport: function () {
+        if (!lastResult || !navigator.clipboard) return;
+        navigator.clipboard.writeText(UI.formatReport(lastResult, { feedUrl: current.response.feedUrl })).catch(function () {});
+      },
+    });
+    document.body.appendChild(panel.element);
+    function closePanel() { panel.close(); siteMain.classList.remove('with-panel'); }
+    document.getElementById('validate-sync').addEventListener('click', function () {
+      if (panel.isOpen()) { closePanel(); return; }
+      panel.open();
+      siteMain.classList.add('with-panel');
+      panel.showLoading();
+      runCheck().then(function (result) {
+        lastResult = result;
+        panel.showResult(result, { checkedAt: checkedAt() });
+      });
+    });
+  })();
+  </script>
+</body>
+</html>

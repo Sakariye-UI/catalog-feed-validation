@@ -1,0 +1,14 @@
+{
+  "name": "catalog-feed-validation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Checks a custom catalog feed against Klaviyo's requirements and shows the results on the Edit Catalog Source page.",
+  "main": "src/checks.js",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}
